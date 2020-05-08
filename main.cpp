@@ -1,3 +1,4 @@
+#include <cassert>
 #include <iostream>
 #include <fstream>
 #include <memory>
@@ -39,7 +40,7 @@ struct TestData {
   }
 };
 
-class FileDumper : public BuildAvi::AviFileReceiver {
+class FileDumper {
 public:
   FileDumper(const char *fname) 
     : filename(fname)
@@ -50,7 +51,7 @@ public:
       ofstr.close();
   }
 
-  bool onAvi (const void *data, size_t nbytes) override {
+  bool onAvi (const void *data, size_t nbytes)  {
     if(!ofstr) {
       ofstr.open(filename.c_str(), std::ios::binary);
       if(!ofstr)
@@ -74,15 +75,16 @@ int main(int argc, char** argv) {
     return -2;
   }
 
-  FileDumper dumper("../.data/out.avi");
   BuildAvi::Config config;
+  config.filename = "../.data/out.avi";
   config.video.codecVideo = BuildAvi::VC_H264;
   (config.video.frameRate[0], config.video.frameRate[1]) = (15, 1);
   config.audio.push_back( { BuildAvi::AC_PCM } );
 
-  std::unique_ptr<BuildAvi::AviBuilder> aviBuilder(BuildAvi::createAviBuilder(config, &dumper));
-  if(!aviBuilder) {
-    return -3;
+  auto [aviBuilder, error] = BuildAvi::createAviBuilder(config);
+  assert(aviBuilder || error);
+  if(error) {
+
   }
 
   auto audio_it = audio.tss.begin();

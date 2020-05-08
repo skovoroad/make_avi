@@ -15,25 +15,23 @@ namespace BuildAvi {
   struct Config {
     struct VideoChannel {
       VideoCodec codecVideo = VC_H264;
-      size_t frameRate[2] =  {0, 1}; //
+      size_t frameRate[2] =  {0, 1}; //units per secs
     };
 
     struct AudioChannel {
       AudioCodec codecAudeo = AC_PCM;
     };
 
+    std::string filename;
     VideoChannel video;
     std::vector<AudioChannel> audio;
-  };
-
-  // this implemented by client to receive result
-  class AviFileReceiver {
-    virtual bool onAvi (const void *, size_t ) = 0;
   };
 
   struct AviBuildError {
     enum Code {
       UNKNOWN,
+      CANNOT_OPEN_FILE,
+      CANNOT_WRITE_FILE,
       ALREADY_FINISHED,
       UNKNONW_AUDIO_CHANNEL
     };
@@ -45,6 +43,8 @@ namespace BuildAvi {
  
   class AviBuilder {
   public:
+    using Ptr = std::shared_ptr<AviBuilder>;
+
     virtual ~AviBuilder() {};
 
     virtual AviBuildError::Ptr addAudio(
@@ -60,5 +60,5 @@ namespace BuildAvi {
     virtual AviBuildError::Ptr close() = 0; 
   };
 
-  AviBuilder * createAviBuilder(const Config&, AviFileReceiver*);
+  std::tuple<AviBuilder::Ptr,AviBuildError::Ptr> createAviBuilder(const Config&);
 } // namespace
