@@ -78,7 +78,10 @@ int main(int argc, char** argv) {
   BuildAvi::Config config;
   config.filename = "../.data/out.avi";
   config.video.codecVideo = BuildAvi::VC_H264;
-  (config.video.frameRate[0], config.video.frameRate[1]) = (15, 1);
+  config.video.width=480;
+  config.video.height=640;
+  config.video.frameRateNum = 25;
+  config.video.frameRateDen = 1;
   config.audio.push_back( { BuildAvi::AC_PCM } );
 
   auto [aviBuilder, error] = BuildAvi::createAviBuilder(config);

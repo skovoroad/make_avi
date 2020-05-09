@@ -2,6 +2,18 @@
 
 #include <cstdint>
 
+#define   AVIF_HASINDEX       0x00000010
+#define   AVIF_MUSTUSEINDEX   0x00000020
+#define   AVIF_ISINTERLEAVED  0x00000100
+#define   AVIF_TRUSTCKTYPE    0x00000800
+#define   AVIF_WASCAPTUREFILE 0x00010000
+#define   AVIF_COPYRIGHTED    0x00020000
+
+static inline const char * FCC_TYPE_VIDEO = "vids";
+static inline const char * FCC_HANDLER_H264 = "H264";
+static inline const char * BICOMPRESSION_H264 = "H264";
+
+
 namespace Avi {
 
 #pragma pack(push, 1)  
@@ -21,7 +33,7 @@ namespace Avi {
   };
 
   struct AVIStreamHeader {
-    char fccType[4] = {'s', 't', 'r', 'h'};
+    char fccType[4] = {0, 0, 0, 0};
     char fccHandler[4] = {0, 0, 0, 0};
     uint32_t dwFlags = 0;
     uint16_t wPriority = 0;
@@ -74,7 +86,7 @@ namespace Avi {
 
  struct LIST_HEADER {
     char dwList[4];
-    uint32_t dwSize;
+    uint32_t dwSize = 4; //dwFourCC lenght included
     char dwFourCC[4];
     //std::vector<char> data;
   //  uint8_t data[dwSize-4] // contains Lists and Chunks
@@ -86,6 +98,5 @@ namespace Avi {
     uint32_t dwChunkOffset;
     uint32_t dwChunkLength;
   };
-#pragma pack(pop)  
-  
+#pragma pack(pop)    
 }
