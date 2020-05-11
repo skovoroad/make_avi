@@ -10,6 +10,7 @@ struct Config {
   std::string videoData;
   std::string videoTimestamps;
   std::string fileOut;
+  std::string mediatype;
 };
 
 bool parseConfig(

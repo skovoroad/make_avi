@@ -75,22 +75,24 @@ int main(int argc, char** argv) {
     return -2;
   }
   if( !audio.read(TestData::AUDIO, appConfig.audioData.c_str(), appConfig.audioTimestamps.c_str())) {
-    return -2;
+    return -3;
   }
 
   BuildAvi::Config config;
   config.filename = appConfig.fileOut.c_str();
+  config.video.mediatype = appConfig.mediatype.c_str();
   config.video.codecVideo = BuildAvi::VC_H264;
-  config.video.width=appConfig.width;
-  config.video.height=appConfig.height;
-  config.video.frameRateNum = 15;
-  config.video.frameRateDen = 1;
+  // config.video.width=appConfig.width;
+  // config.video.height=appConfig.height;
+  // config.video.frameRateNum = 15;
+  // config.video.frameRateDen = 1;
   config.audio.push_back( { BuildAvi::AC_PCM } );
 
   auto [aviBuilder, error] = BuildAvi::createAviBuilder(config);
   assert(aviBuilder || error);
   if(error) {
-
+    std::cerr << "cannot init avi builder: " << error->text;
+    return -4;
   }
 
   auto audio_it = audio.tss.begin();

@@ -14,12 +14,13 @@ namespace BuildAvi {
 
   struct Config {
     struct VideoChannel {
+      std::string mediatype;
       VideoCodec codecVideo = VC_H264;
-      uint32_t width = 0;
-      uint32_t height = 0;
+      // uint32_t width = 0;
+      // uint32_t height = 0;
 
-      size_t frameRateNum = 0; // units ...
-      size_t frameRateDen = 1; // ...per secs
+      // size_t frameRateNum = 0; // units ...
+      // size_t frameRateDen = 1; // ...per secs
     };
 
     struct AudioChannel {
@@ -37,7 +38,8 @@ namespace BuildAvi {
       CANNOT_OPEN_FILE,
       CANNOT_WRITE_FILE,
       ALREADY_FINISHED,
-      UNKNONW_AUDIO_CHANNEL
+      UNKNONW_AUDIO_CHANNEL,
+      BAD_MEDIA_TYPE
     };
     using Ptr = std::shared_ptr<AviBuildError>;
 

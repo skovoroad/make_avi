@@ -27,6 +27,7 @@ bool parseConfig(
       ("video-data-in", po::value<std::string>(&config.videoData), "input file with video binary data")
       ("video-timestamps-in", po::value<std::string>(&config.videoTimestamps), "input file with video timestamps and chunk sizes")
       ("avi-file-out", po::value<std::string>(&config.fileOut), "output avi file")
+      ("mediatype", po::value<std::string>(&config.mediatype), "mediatype")
 
     ;
     po::variables_map vm;
