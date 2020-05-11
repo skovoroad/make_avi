@@ -117,18 +117,14 @@ namespace BuildAvi {
       });;    
 
     mainHeader_.dwMicroSecPerFrame = config_.video.frameRateNum ?
-      10e5 * config_.video.frameRateDen/ config_.video.frameRateNum : 0; // frame display rate (or 0)
+      10e6 * config_.video.frameRateDen/ config_.video.frameRateNum : 0; 
     mainHeader_.dwMaxBytesPerSec = 1024*1024*15; // TODO: calculate
-    mainHeader_.dwPaddingGranularity = 0; // TODO: wtf is this? 
-    mainHeader_.dwFlags = AVIF_HASINDEX ;
-    //| AVIF_ISINTERLEAVED; 
-    //mainHeader_.dwFlags = 272; 
-    // AVIF_HASINDEX
-    // TODO ??????? //AVIF_WASCAPTUREFILE; // TODO: maybe AVIF_ISINTERLEAVED?
+    mainHeader_.dwPaddingGranularity = 0; 
+    mainHeader_.dwFlags = AVIF_HASINDEX | AVIF_ISINTERLEAVED; 
     mainHeader_.dwTotalFrames = 0; // will be calculated later
-    mainHeader_.dwInitialFrames = 0;  // docs: "Ignore that"
-    mainHeader_.dwStreams = 2; // TODO: tmp debug
-    mainHeader_.dwSuggestedBufferSize = 0;// aviStructureConfig.dwSuggestedBufferSize;
+    mainHeader_.dwInitialFrames = 0;  
+    mainHeader_.dwStreams = 2; // / TODO: get it from config
+    mainHeader_.dwSuggestedBufferSize = 0;
     mainHeader_.dwWidth = config_.video.width;
     mainHeader_.dwHeight = config_.video.height;
 //  mainHeader_.dwReserved[4];
@@ -140,24 +136,24 @@ namespace BuildAvi {
     streamHeaderVideo_.wLanguage = 0;
     streamHeaderVideo_.dwInitialFrames = 0;
     streamHeaderVideo_.dwScale = config_.video.frameRateDen;
-    streamHeaderVideo_.dwRate = config_.video.frameRateNum; /* dwRate / dwScale == samples/second */
+    streamHeaderVideo_.dwRate = config_.video.frameRateNum; 
     streamHeaderVideo_.dwStart = 0;
     streamHeaderVideo_.dwLength = 0; // will be calculated later
     streamHeaderVideo_.dwSuggestedBufferSize = aviStructureConfig.dwSuggestedBufferSize;
-    streamHeaderVideo_.dwQuality = 0;    // default
-    streamHeaderVideo_.dwSampleSize = 0;  // can vary, so set to zero (docs)
-    streamHeaderVideo_.rcFrame.left = 0;  // TODO is it so?
-    streamHeaderVideo_.rcFrame.top = 0;   // TODO is it so?
-    streamHeaderVideo_.rcFrame.right = config_.video.width;    // TODO is it so?
-    streamHeaderVideo_.rcFrame.bottom = config_.video.height;  // TODO is it so?
+    streamHeaderVideo_.dwQuality = 0;   
+    streamHeaderVideo_.dwSampleSize = 0;  
+    streamHeaderVideo_.rcFrame.left = 0;  
+    streamHeaderVideo_.rcFrame.top = 0;   
+    streamHeaderVideo_.rcFrame.right = config_.video.width;
+    streamHeaderVideo_.rcFrame.bottom = config_.video.height;\
 
     videoInfoHeader_.biSize = sizeof(videoInfoHeader_); 
     videoInfoHeader_.biWidth = config_.video.width; 
     videoInfoHeader_.biHeight = config_.video.height; 
     videoInfoHeader_.biPlanes = 1; 
-    videoInfoHeader_.biBitCount = 24; // TODO: is it so? 
+    videoInfoHeader_.biBitCount = 24; 
     std::copy(BICOMPRESSION_H264, BICOMPRESSION_H264+4, reinterpret_cast<char *>(&videoInfoHeader_.biCompression));
-    videoInfoHeader_.biSizeImage = 307200; // TODO: calculate it! 
+    videoInfoHeader_.biSizeImage = config_.video.width * config_.video.height; 
     videoInfoHeader_.biXPelsPerMeter = 0; 
     videoInfoHeader_.biYPelsPerMeter = 0; 
     videoInfoHeader_.biClrUsed = 0; 
@@ -165,7 +161,6 @@ namespace BuildAvi {
 
 
     std::copy(FCC_TYPE_AUDIO, FCC_TYPE_AUDIO+4,  &streamHeaderAudio_.fccType[0]);
-//    std::copy(FCC_HANDLER_PCM, FCC_HANDLER_PCM+4, &streamHeaderVideo_.fccHandler[0]);
     std::copy(&FCC_HANDLER_PCM[0], &FCC_HANDLER_PCM[0]+4, &streamHeaderAudio_.fccHandler[0]);    
     streamHeaderAudio_.dwFlags = 0;
     streamHeaderAudio_.wPriority = 0;
@@ -176,12 +171,12 @@ namespace BuildAvi {
     streamHeaderAudio_.dwStart = 0;
     streamHeaderAudio_.dwLength = 0; // will be calculated later
     streamHeaderAudio_.dwSuggestedBufferSize = aviStructureConfig.dwSuggestedBufferSize;
-    streamHeaderAudio_.dwQuality = 0;    // default
+    streamHeaderAudio_.dwQuality = 0;    
     streamHeaderAudio_.dwSampleSize = 2; 
-    streamHeaderAudio_.rcFrame.left = 0;  // TODO is it so?
-    streamHeaderAudio_.rcFrame.top = 0;   // TODO is it so?
-    streamHeaderAudio_.rcFrame.right = config_.video.width;    // TODO is it so?
-    streamHeaderAudio_.rcFrame.bottom = config_.video.height;  // TODO is it so?
+    streamHeaderAudio_.rcFrame.left = 0; 
+    streamHeaderAudio_.rcFrame.top = 0;  
+    streamHeaderAudio_.rcFrame.right = config_.video.width;
+    streamHeaderAudio_.rcFrame.bottom = config_.video.height;
 
     audioInfoHeader_.wFormatTag = 1;
     audioInfoHeader_.nChannels = 1;
@@ -190,9 +185,6 @@ namespace BuildAvi {
     audioInfoHeader_.nBlockAlign = 2;
     audioInfoHeader_.wBitsPerSample = 16;
     audioInfoHeader_.cbSize = 0;
-
-    // Avi::AVIStreamHeader streamHeaderAudio_;
-    // Avi::WAVEFORMATEX audioInfoHeader_;
     return AviBuildError::Ptr();
   }
 
@@ -222,9 +214,7 @@ namespace BuildAvi {
 
         Avi::CHUNK_HEADER chunk = {{'0','1','w','b'}, static_cast<uint32_t>(audioCache_.size()) }; // TODO why 00? dc or db?
         auto err = writeBlockSplitted(chunk, audioCache_.data());
-
         size_t chunksCount = audioCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
-//        mainHeader_.dwTotalFrames += chunksCount;
         streamHeaderAudio_.dwLength += chunksCount * aviStructureConfig.dwSuggestedBufferSize / streamHeaderAudio_.dwSampleSize; 
         assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= audioCache_.size());
         audioCache_.erase(audioCache_.begin(), audioCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);

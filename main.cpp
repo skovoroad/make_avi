@@ -69,6 +69,7 @@ int main(int argc, char** argv) {
   
   TestData video, audio;
   if( !video.read(TestData::VIDEO, "../.data/test.h264", "../.data/h264.ts")) {
+  //if( !video.read(TestData::VIDEO, "../.data/scaled.h264", "../.data/h264.ts")) {
     return -1;
   }
   if( !audio.read(TestData::AUDIO, "../.data/test.pcm", "../.data/pcm.ts")) {
@@ -80,7 +81,7 @@ int main(int argc, char** argv) {
   config.video.codecVideo = BuildAvi::VC_H264;
   config.video.width=480;
   config.video.height=640;
-  config.video.frameRateNum = 25;
+  config.video.frameRateNum = 15;
   config.video.frameRateDen = 1;
   config.audio.push_back( { BuildAvi::AC_PCM } );
 
