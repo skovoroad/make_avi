@@ -80,8 +80,8 @@ int main(int argc, char** argv) {
   BuildAvi::Config config;
   config.filename = "../.data/out_ma.avi";
   config.video.codecVideo = BuildAvi::VC_H264;
-  config.video.width=180;
-  config.video.height=240;
+  config.video.width=0;
+  config.video.height=0;
   config.video.frameRateNum = 15;
   config.video.frameRateDen = 1;
   config.audio.push_back( { BuildAvi::AC_PCM } );

@@ -9,7 +9,7 @@
 namespace BuildAvi {
 
   struct AviStructureConfig {
-    size_t dwSuggestedBufferSize = 4096 * 10;
+    size_t dwSuggestedBufferSize = 1024;
   };
 
   static const AviStructureConfig aviStructureConfig;
@@ -369,6 +369,13 @@ namespace BuildAvi {
   }
 
   AviBuildError::Ptr AviBuilderImpl::writeHeaders() {
+    double duration = static_cast<double>(streamHeaderAudio_.dwLength) / static_cast<double>(streamHeaderAudio_.dwRate);
+    double framerate = duration / static_cast<double>(streamHeaderVideo_.dwLength);
+
+    streamHeaderVideo_.dwRate = streamHeaderVideo_.dwLength;
+    streamHeaderVideo_.dwScale = static_cast<uint32_t>(duration); 
+
+
     sizeFields_.remove(&riffList.dwSize);
 
     ofstr.seekp(riffListPosition_ );
@@ -428,28 +435,36 @@ namespace BuildAvi {
   }
 
   AviBuildError::Ptr AviBuilderImpl::writeBlock(const Avi::CHUNK_HEADER& ch, const void* data, bool saveIndex){
-    if(saveIndex) {
-      Avi::AVIINDEXENTRY index;
-      index.ckid = *reinterpret_cast<const uint32_t *>(&ch.dwFourCC[0]);
-      index.dwFlags  = 0;
-      //index.dwFlags = AVIIF_KEYFRAME;
-      index.dwChunkOffset = pos;// - (moviHeaderPosition_+ sizeof(moviHeader_));
-      index.dwChunkLength = ch.dwSize;   
-      indexes_.insert(indexes_.end(), 
-        reinterpret_cast<const uint8_t *>(&index), 
-        reinterpret_cast<const uint8_t *>(&index) + sizeof(index));
-    }
-
     ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&ch), sizeof(ch));
     ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(data), ch.dwSize);
+    if(ch.dwSize % 2) {
+      ofstr << (char)0;
+    }
     if(ofstr.fail())
       return AviBuildError::Ptr( new AviBuildError {
         AviBuildError::CANNOT_WRITE_FILE, 
         std::string("cannot write to file") 
       });
 
+    if(saveIndex) {
+      Avi::AVIINDEXENTRY index;
+      index.ckid = *reinterpret_cast<const uint32_t *>(&ch.dwFourCC[0]);
+      index.dwFlags  = 0;
+      //index.dwFlags = AVIIF_KEYFRAME;
+      index.dwChunkOffset = pos;// - (moviHeaderPosition_+ sizeof(moviHeader_));
+      index.dwChunkLength = ch.dwSize;
+      indexes_.insert(indexes_.end(), 
+        reinterpret_cast<const uint8_t *>(&index), 
+        reinterpret_cast<const uint8_t *>(&index) + sizeof(index));
+    }
+
     sizeFields_.increase(ch.dwSize + sizeof(ch));
     pos += ch.dwSize + sizeof(ch);
+    if(ch.dwSize % 2) {
+      sizeFields_.increase(1);
+      pos += 1;
+    }
+    
     return AviBuildError::Ptr();
   }
 
