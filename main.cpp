@@ -3,6 +3,7 @@
 #include <fstream>
 #include <memory>
 
+#include "config.h"
 #include "build_avi.h"
 
 struct TestData {
@@ -64,21 +65,21 @@ public:
   std::ofstream ofstr;
 };
 
-
 int main(int argc, char** argv) {
-  
-  TestData video, audio;
-  //if( !video.read(TestData::VIDEO, "../.data/test.h264", "../.data/h264.ts")) {
-  // if( !video.read(TestData::VIDEO, "../.data/scaled_gst.h264", "../.data/h264.ts")) {
-  if( !video.read(TestData::VIDEO, "../.data/out.h264", "../.data/h264_scaled.ts")) {
+  Config appConfig;
+  if(!parseConfig(argc, argv, appConfig))
     return -1;
+
+  TestData video, audio;
+  if( !video.read(TestData::VIDEO, appConfig.videoData.c_str(), appConfig.videoTimestamps.c_str())) {
+    return -2;
   }
-  if( !audio.read(TestData::AUDIO, "../.data/test.pcm", "../.data/pcm.ts")) {
+  if( !audio.read(TestData::AUDIO, appConfig.audioData.c_str(), appConfig.audioTimestamps.c_str())) {
     return -2;
   }
 
   BuildAvi::Config config;
-  config.filename = "../.data/out_ma.avi";
+  config.filename = appConfig.fileOut.c_str();
   config.video.codecVideo = BuildAvi::VC_H264;
   config.video.width=0;
   config.video.height=0;
