@@ -245,18 +245,17 @@ namespace BuildAvi {
           static_cast<const uint8_t*>(data), 
           static_cast<const uint8_t*>(data)+nbytes
         ); 
-        break;
-        // if(videoCache_.size() < aviStructureConfig.dwSuggestedBufferSize)
-        //   return AviBuildError::Ptr();
+        if(videoCache_.size() < aviStructureConfig.dwSuggestedBufferSize)
+          return AviBuildError::Ptr();
 
-        // Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
-        // auto err = writeBlockSplitted(chunk, videoCache_.data());
-        // size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
-        // mainHeader_.dwTotalFrames += chunksCount;
-        // streamHeaderVideo_.dwLength += chunksCount; 
-        // assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
-        // videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
-        // return err;
+        Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
+        auto err = writeBlockSplitted(chunk, videoCache_.data());
+        size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
+        mainHeader_.dwTotalFrames += chunksCount;
+        streamHeaderVideo_.dwLength += chunksCount; 
+        assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
+        videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
+        return err;
       }
       case ST_FINISHED: 
         return AviBuildError::Ptr( new AviBuildError {
@@ -410,7 +409,6 @@ namespace BuildAvi {
     size_t remain = ch.dwSize;
     const std::ofstream::char_type* position = reinterpret_cast<const std::ofstream::char_type*>(data);
 
-    // TODO: while remaim > dwSuggestedBufferSize! remain - to cache
     while(remain > aviStructureConfig.dwSuggestedBufferSize) {
       ch.dwSize = aviStructureConfig.dwSuggestedBufferSize;
       auto err = writeBlock(ch, position, true);
@@ -427,7 +425,7 @@ namespace BuildAvi {
     if(saveIndex) {
       Avi::AVIINDEXENTRY index;
       index.ckid = *reinterpret_cast<const uint32_t *>(&ch.dwFourCC[0]);
-      index.dwFlags = AVIIF_KEYFRAME;
+      //index.dwFlags = AVIIF_KEYFRAME;
       index.dwChunkOffset = pos;// - (moviHeaderPosition_+ sizeof(moviHeader_));
       index.dwChunkLength = ch.dwSize;   
       indexes_.insert(indexes_.end(), 

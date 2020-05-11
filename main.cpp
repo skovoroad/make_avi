@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
   }
 
   BuildAvi::Config config;
-  config.filename = "../.data/out.avi";
+  config.filename = "../.data/out_ma.avi";
   config.video.codecVideo = BuildAvi::VC_H264;
   config.video.width=480;
   config.video.height=640;
@@ -91,35 +91,53 @@ int main(int argc, char** argv) {
 
   }
 
-  auto audio_it = audio.tss.begin();
-  auto video_it = video.tss.begin();
-  while (! (audio_it == audio.tss.end() && video_it == video.tss.end()) ) {
-    TestData::PacketInfo next;
+  size_t iterationsCount = 10;
+  size_t videoChunkSize = video.data.size() / iterationsCount;
+  size_t audioChunkSize = audio.data.size() / iterationsCount;
+  size_t audioPos = 0;
+  size_t videoPos = 0;
+  size_t iteration = 0;
+  while(iteration < iterationsCount) {
+    size_t audioPos = videoChunkSize ;
+     aviBuilder->addAudio(0, &audio.data.data()[audioChunkSize * iteration], audioChunkSize);
+     aviBuilder->addVideo(&video.data.data()[videoChunkSize * iteration], videoChunkSize);
+     iteration++;
+  }
+  size_t tailAudio = audio.data.size() - audioChunkSize * iterationsCount;
+  size_t tailVideo = video.data.size() - videoChunkSize * iterationsCount;
+  aviBuilder->addAudio(0, &audio.data.data()[audioChunkSize * iterationsCount], tailAudio);
+  aviBuilder->addVideo(&video.data.data()[videoChunkSize * iterationsCount], tailVideo);
 
-    if(audio_it == audio.tss.end()) {
-      next = *video_it;
-      video_it++;
-    }
-    else if(video_it == video.tss.end()) {
-      next = *audio_it;
-      audio_it++;
-    }
-    else if(audio_it->ts < video_it->ts) {
-      next = *audio_it;
-      audio_it++;      
-    }
-    else {
-      next = *video_it;
-      video_it++;            
-    }
 
-    if(next.type == TestData::AUDIO) {
-      aviBuilder->addAudio(0, next.buffer, next.size);
-    }
-    else {
-      aviBuilder->addVideo(next.buffer, next.size);
-    }
-  } // while
+  // auto audio_it = audio.tss.begin();
+  // auto video_it = video.tss.begin();
+  // while (! (audio_it == audio.tss.end() && video_it == video.tss.end()) ) {
+  //   TestData::PacketInfo next;
+
+  //   if(audio_it == audio.tss.end()) {
+  //     next = *video_it;
+  //     video_it++;
+  //   }
+  //   else if(video_it == video.tss.end()) {
+  //     next = *audio_it;
+  //     audio_it++;
+  //   }
+  //   else if(audio_it->ts < video_it->ts) {
+  //     next = *audio_it;
+  //     audio_it++;      
+  //   }
+  //   else {
+  //     next = *video_it;
+  //     video_it++;            
+  //   }
+
+  //   if(next.type == TestData::AUDIO) {
+  //     aviBuilder->addAudio(0, next.buffer, next.size);
+  //   }
+  //   else {
+  //     aviBuilder->addVideo(next.buffer, next.size);
+  //   }
+  // } // while
   aviBuilder->close();
   return 0;
 }
