@@ -9,7 +9,7 @@
 namespace BuildAvi {
 
   struct AviStructureConfig {
-    size_t dwSuggestedBufferSize = 1024;
+    size_t dwSuggestedBufferSize = 4096;
   };
 
   static const AviStructureConfig aviStructureConfig;
@@ -422,7 +422,7 @@ namespace BuildAvi {
     size_t remain = ch.dwSize;
     const std::ofstream::char_type* position = reinterpret_cast<const std::ofstream::char_type*>(data);
 
-    while(remain > aviStructureConfig.dwSuggestedBufferSize) {
+    while(remain >= aviStructureConfig.dwSuggestedBufferSize) {
       ch.dwSize = aviStructureConfig.dwSuggestedBufferSize;
       auto err = writeBlock(ch, position, true);
       if(err)

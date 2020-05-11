@@ -20,6 +20,8 @@ bool parseConfig(
     
     po::options_description fileOptions{"File"};
     fileOptions.add_options()
+      ("width", po::value<size_t>(&config.width), "video width")
+      ("height", po::value<size_t>(&config.height), "video height")
       ("audio-data-in", po::value<std::string>(&config.audioData), "input file with audio binary data")
       ("audio-timestamps-in", po::value<std::string>(&config.audioTimestamps), "input file with audio timestamps and chunk sizes")
       ("video-data-in", po::value<std::string>(&config.videoData), "input file with video binary data")

@@ -81,8 +81,8 @@ int main(int argc, char** argv) {
   BuildAvi::Config config;
   config.filename = appConfig.fileOut.c_str();
   config.video.codecVideo = BuildAvi::VC_H264;
-  config.video.width=0;
-  config.video.height=0;
+  config.video.width=appConfig.width;
+  config.video.height=appConfig.height;
   config.video.frameRateNum = 15;
   config.video.frameRateDen = 1;
   config.audio.push_back( { BuildAvi::AC_PCM } );
@@ -92,24 +92,6 @@ int main(int argc, char** argv) {
   if(error) {
 
   }
-
-  // size_t iterationsCount = 10;
-  // size_t videoChunkSize = video.data.size() / iterationsCount;
-  // size_t audioChunkSize = audio.data.size() / iterationsCount;
-  // size_t audioPos = 0;
-  // size_t videoPos = 0;
-  // size_t iteration = 0;
-  // while(iteration < iterationsCount) {
-  //   size_t audioPos = videoChunkSize ;
-  //    aviBuilder->addAudio(0, &audio.data.data()[audioChunkSize * iteration], audioChunkSize);
-  //    aviBuilder->addVideo(&video.data.data()[videoChunkSize * iteration], videoChunkSize);
-  //    iteration++;
-  // }
-  // size_t tailAudio = audio.data.size() - audioChunkSize * iterationsCount;
-  // size_t tailVideo = video.data.size() - videoChunkSize * iterationsCount;
-  // aviBuilder->addAudio(0, &audio.data.data()[audioChunkSize * iterationsCount], tailAudio);
-  // aviBuilder->addVideo(&video.data.data()[videoChunkSize * iterationsCount], tailVideo);
-  // aviBuilder->close();
 
   auto audio_it = audio.tss.begin();
   auto video_it = video.tss.begin();
