@@ -9,8 +9,14 @@
 #define   AVIF_WASCAPTUREFILE 0x00010000
 #define   AVIF_COPYRIGHTED    0x00020000
 
+#define   AVIIF_LIST          0x00000001
+#define   AVIIF_KEYFRAME      0x00000010
+#define   AVIIF_NO_TIME       0x00000100
+
 static inline const char * FCC_TYPE_VIDEO = "vids";
+static inline const char * FCC_TYPE_AUDIO = "auds";
 static inline const char * FCC_HANDLER_H264 = "H264";
+static inline const char * FCC_HANDLER_PCM = "araw"; // TODO: "pcm "?
 static inline const char * BICOMPRESSION_H264 = "H264";
 
 
@@ -97,6 +103,10 @@ namespace Avi {
     uint32_t dwFlags;
     uint32_t dwChunkOffset;
     uint32_t dwChunkLength;
+  };
+
+  struct ODMLExtendedAVIHeader {
+    uint32_t dwTotalFrames;
   };
 #pragma pack(pop)    
 }

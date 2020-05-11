@@ -75,21 +75,28 @@ namespace BuildAvi {
     pos_t streamHeaderAudioPosition_ = 0;
 
     Avi::WAVEFORMATEX audioInfoHeader_;
-    pos_t audioInfoHeaderPosition_;
+    pos_t audioInfoHeaderPosition_= 0;
+
+    Avi::LIST_HEADER odmlList = { {'L','I','S','T'}, 4,{'o','d','m','l'} };
+    pos_t odmlListPosition_ = 0;
+
+    Avi::ODMLExtendedAVIHeader odmlHeader_;
+    pos_t odmlHeaderPosition_ = 0;
 
     // data
     Avi::LIST_HEADER moviHeader_ = { {'L','I','S','T'}, 4 ,{'m','o','v','i'}};
     pos_t moviHeaderPosition_ = 0;
 
-    // std::vector<uint8_t> audioCache_;
-    // std::list<size_t> audioCachePositions_;
     std::vector<uint8_t> videoCache_;
+    std::vector<uint8_t> audioCache_;
 
     AviBuildError::Ptr writePhonyHeaders();
     AviBuildError::Ptr writeHeaders();
-    AviBuildError::Ptr writeBlock(const Avi::CHUNK_HEADER&, const void* );
+    AviBuildError::Ptr writeBlock(const Avi::CHUNK_HEADER&, const void* , bool saveIndex);
     AviBuildError::Ptr writeBlockSplitted(const Avi::CHUNK_HEADER&, const void* );
     AviBuildError::Ptr writePhony(size_t nbytes);
+
+    std::vector<uint8_t> indexes_;
 
     SizeFields sizeFields_;
   };
@@ -113,10 +120,14 @@ namespace BuildAvi {
       10e5 * config_.video.frameRateDen/ config_.video.frameRateNum : 0; // frame display rate (or 0)
     mainHeader_.dwMaxBytesPerSec = 1024*1024*15; // TODO: calculate
     mainHeader_.dwPaddingGranularity = 0; // TODO: wtf is this? 
-    mainHeader_.dwFlags = 272; // TODO ??????? //AVIF_WASCAPTUREFILE; // TODO: maybe AVIF_ISINTERLEAVED?
+    mainHeader_.dwFlags = AVIF_HASINDEX ;
+    //| AVIF_ISINTERLEAVED; 
+    //mainHeader_.dwFlags = 272; 
+    // AVIF_HASINDEX
+    // TODO ??????? //AVIF_WASCAPTUREFILE; // TODO: maybe AVIF_ISINTERLEAVED?
     mainHeader_.dwTotalFrames = 0; // will be calculated later
     mainHeader_.dwInitialFrames = 0;  // docs: "Ignore that"
-    mainHeader_.dwStreams = 1; // TODO: tmp debug
+    mainHeader_.dwStreams = 2; // TODO: tmp debug
     mainHeader_.dwSuggestedBufferSize = 0;// aviStructureConfig.dwSuggestedBufferSize;
     mainHeader_.dwWidth = config_.video.width;
     mainHeader_.dwHeight = config_.video.height;
@@ -152,14 +163,40 @@ namespace BuildAvi {
     videoInfoHeader_.biClrUsed = 0; 
     videoInfoHeader_.biClrImportant = 0; 
 
+
+    std::copy(FCC_TYPE_AUDIO, FCC_TYPE_AUDIO+4,  &streamHeaderAudio_.fccType[0]);
+//    std::copy(FCC_HANDLER_PCM, FCC_HANDLER_PCM+4, &streamHeaderVideo_.fccHandler[0]);
+    std::copy(&FCC_HANDLER_PCM[0], &FCC_HANDLER_PCM[0]+4, &streamHeaderAudio_.fccHandler[0]);    
+    streamHeaderAudio_.dwFlags = 0;
+    streamHeaderAudio_.wPriority = 0;
+    streamHeaderAudio_.wLanguage = 0;
+    streamHeaderAudio_.dwInitialFrames = 0;
+    streamHeaderAudio_.dwScale = 1;
+    streamHeaderAudio_.dwRate = 8000; // TODO: get it from config
+    streamHeaderAudio_.dwStart = 0;
+    streamHeaderAudio_.dwLength = 0; // will be calculated later
+    streamHeaderAudio_.dwSuggestedBufferSize = aviStructureConfig.dwSuggestedBufferSize;
+    streamHeaderAudio_.dwQuality = 0;    // default
+    streamHeaderAudio_.dwSampleSize = 2; 
+    streamHeaderAudio_.rcFrame.left = 0;  // TODO is it so?
+    streamHeaderAudio_.rcFrame.top = 0;   // TODO is it so?
+    streamHeaderAudio_.rcFrame.right = config_.video.width;    // TODO is it so?
+    streamHeaderAudio_.rcFrame.bottom = config_.video.height;  // TODO is it so?
+
+    audioInfoHeader_.wFormatTag = 1;
+    audioInfoHeader_.nChannels = 1;
+    audioInfoHeader_.nSamplesPerSec = 8000;
+    audioInfoHeader_.nAvgBytesPerSec = 16000;
+    audioInfoHeader_.nBlockAlign = 2;
+    audioInfoHeader_.wBitsPerSample = 16;
+    audioInfoHeader_.cbSize = 0;
+
     // Avi::AVIStreamHeader streamHeaderAudio_;
     // Avi::WAVEFORMATEX audioInfoHeader_;
     return AviBuildError::Ptr();
   }
 
   AviBuildError::Ptr AviBuilderImpl::addAudio(size_t channelIndex, const void *data, size_t nbytes) {
-    return AviBuildError::Ptr();
-
     if(channelIndex > config_.audio.size() - 1)
       return AviBuildError::Ptr( new AviBuildError {
         AviBuildError::UNKNONW_AUDIO_CHANNEL, 
@@ -175,16 +212,22 @@ namespace BuildAvi {
         return addAudio(channelIndex, data, nbytes);
       }
       case ST_MOVI: {
-        Avi::CHUNK_HEADER chunk = {{'0','0','w','b'}, static_cast<uint32_t>(nbytes) }; // TODO why 00? dc or db?
-        //streamHeaderAudio_.dwLength++;
-        return writeBlockSplitted(chunk, data);          
-        // audioCache_.insert(
-        //   audioCache_.end(), 
-        //   static_cast<const uint8_t*>(data), 
-        //   static_cast<const uint8_t*>(data)+nbytes
-        // );
-        // size_t prevPosition = audioCachePositions_.empty() ? 0 : *audioCachePositions_.rbegin();
-        // audioCachePositions_.push_back(prevPosition+nbytes);
+        audioCache_.insert(
+          audioCache_.end(), 
+          static_cast<const uint8_t*>(data), 
+          static_cast<const uint8_t*>(data)+nbytes
+        ); 
+        if(audioCache_.size() < aviStructureConfig.dwSuggestedBufferSize)
+          return AviBuildError::Ptr();
+
+        Avi::CHUNK_HEADER chunk = {{'0','1','w','b'}, static_cast<uint32_t>(audioCache_.size()) }; // TODO why 00? dc or db?
+        auto err = writeBlockSplitted(chunk, audioCache_.data());
+
+        size_t chunksCount = audioCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
+//        mainHeader_.dwTotalFrames += chunksCount;
+        streamHeaderAudio_.dwLength += chunksCount * aviStructureConfig.dwSuggestedBufferSize / streamHeaderAudio_.dwSampleSize; 
+        assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= audioCache_.size());
+        audioCache_.erase(audioCache_.begin(), audioCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
       }
       case ST_FINISHED: 
         return AviBuildError::Ptr( new AviBuildError {
@@ -212,18 +255,18 @@ namespace BuildAvi {
           static_cast<const uint8_t*>(data), 
           static_cast<const uint8_t*>(data)+nbytes
         ); 
-        if(videoCache_.size() < aviStructureConfig.dwSuggestedBufferSize)
-          return AviBuildError::Ptr();
+        break;
+        // if(videoCache_.size() < aviStructureConfig.dwSuggestedBufferSize)
+        //   return AviBuildError::Ptr();
 
-        Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
-        auto err = writeBlockSplitted(chunk, videoCache_.data());
-
-        size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
-        mainHeader_.dwTotalFrames += chunksCount;
-        streamHeaderVideo_.dwLength += chunksCount; 
-        assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
-        videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
-        return err;
+        // Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
+        // auto err = writeBlockSplitted(chunk, videoCache_.data());
+        // size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
+        // mainHeader_.dwTotalFrames += chunksCount;
+        // streamHeaderVideo_.dwLength += chunksCount; 
+        // assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
+        // videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
+        // return err;
       }
       case ST_FINISHED: 
         return AviBuildError::Ptr( new AviBuildError {
@@ -237,15 +280,19 @@ namespace BuildAvi {
   } 
 
   AviBuildError::Ptr AviBuilderImpl::close() {
-    // if(audioCachePositions_.empty())
-    //   return;
-    // auto cachePosIt = audioCachePositions_.begin();
-    // auto cachePosItNext = audioCachePositions_.begin();
-    // cachePosItNext++;
-    // for(; cachePosItNext != audioCachePositions_.end(); cachePosIt++, cachePosItNext++) {
-    //   size_t curPos = *cachePosItNext;
-    //   size_t nextPos = *cachePosItNext;
-    // }
+    Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
+    auto err = writeBlockSplitted(chunk, videoCache_.data());
+    size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
+    mainHeader_.dwTotalFrames += chunksCount;
+    odmlHeader_.dwTotalFrames += chunksCount;
+    streamHeaderVideo_.dwLength += chunksCount; 
+    assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
+    videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
+
+    sizeFields_.remove(&moviHeader_.dwSize);
+
+    Avi::CHUNK_HEADER ch = {{'i','d','x','1'}, static_cast<uint32_t>(indexes_.size()) };
+    writeBlock(ch, indexes_.data(), false);
 
     writeHeaders();
     ofstr.close();
@@ -268,7 +315,7 @@ namespace BuildAvi {
 
         mainHeaderPosition_ = pos;
         mainHeaderPosition_ += sizeof(Avi::CHUNK_HEADER);
-        if(err = writeBlock( {{'a','v','i','h'}, sizeof(mainHeader_) }, &mainHeader_))
+        if(err = writeBlock( {{'a','v','i','h'}, sizeof(mainHeader_) }, &mainHeader_, false))
           return err;
 
         streamVideoListPosition_ = pos;
@@ -278,30 +325,42 @@ namespace BuildAvi {
 
         streamHeaderVideoPosition_ = pos;
         streamHeaderVideoPosition_ += sizeof(Avi::CHUNK_HEADER);
-        if(err = writeBlock( {{'s','t','r','h'}, sizeof(streamHeaderVideo_) }, &streamHeaderVideo_))
+        if(err = writeBlock( {{'s','t','r','h'}, sizeof(streamHeaderVideo_) }, &streamHeaderVideo_, false))
           return err;
 
         videoInfoHeaderPosition_ = pos;
         videoInfoHeaderPosition_ += sizeof(Avi::CHUNK_HEADER);
-        if(err = writeBlock( {{'s','t','r','f'}, sizeof(videoInfoHeader_) }, &videoInfoHeader_))
+        if(err = writeBlock( {{'s','t','r','f'}, sizeof(videoInfoHeader_) }, &videoInfoHeader_, false))
           return err;
         sizeFields_.remove(&streamVideoList.dwSize);
 
-        // streamAudioListPosition_ = pos;
-        // if(err = writePhony(sizeof(streamAudioList)))
-        //   return err;
-        // sizeFields_.add(&streamAudioList.dwSize);
+        streamAudioListPosition_ = pos;
+        if(err = writePhony(sizeof(streamAudioList)))
+          return err;
+        sizeFields_.add(&streamAudioList.dwSize);
 
-        // streamHeaderAudioPosition_ = pos;
-        // streamHeaderAudioPosition_ += sizeof(Avi::CHUNK_HEADER);
-        // if(err = writeBlock( {{'s','t','r','h'}, sizeof(streamHeaderAudio_) }, &streamHeaderAudio_))
-        //   return err;
+        streamHeaderAudioPosition_ = pos;
+        streamHeaderAudioPosition_ += sizeof(Avi::CHUNK_HEADER);
+        if(err = writeBlock( {{'s','t','r','h'}, sizeof(streamHeaderAudio_) }, &streamHeaderAudio_, false))
+          return err;
 
-        // audioInfoHeaderPosition_ = pos;
-        // audioInfoHeaderPosition_ += sizeof(Avi::CHUNK_HEADER);
-        // if(err = writeBlock( {{'s','t','r','f'}, sizeof(audioInfoHeader_) }, &audioInfoHeader_))
-        //   return err;
-        // sizeFields_.remove(&streamAudioList.dwSize);
+        audioInfoHeaderPosition_ = pos;
+        audioInfoHeaderPosition_ += sizeof(Avi::CHUNK_HEADER);
+        if(err = writeBlock( {{'s','t','r','f'}, sizeof(audioInfoHeader_) }, &audioInfoHeader_, false))
+          return err;
+        sizeFields_.remove(&streamAudioList.dwSize);
+
+        odmlListPosition_ = pos;
+        if(err = writePhony(sizeof(odmlList)))
+          return err;
+        sizeFields_.add(&odmlList.dwSize);
+
+        odmlHeaderPosition_ = pos;
+        odmlHeaderPosition_ += sizeof(Avi::CHUNK_HEADER);
+        if(err = writeBlock( {{'o','d','m','h'}, sizeof(odmlHeader_) }, &odmlHeader_, false))
+          return err;
+        sizeFields_.remove(&odmlList.dwSize);
+
 
       sizeFields_.remove(&headerList.dwSize);
 
@@ -315,7 +374,6 @@ namespace BuildAvi {
   }
 
   AviBuildError::Ptr AviBuilderImpl::writeHeaders() {
-    sizeFields_.remove(&moviHeader_.dwSize);
     sizeFields_.remove(&riffList.dwSize);
 
     ofstr.seekp(riffListPosition_ );
@@ -336,14 +394,20 @@ namespace BuildAvi {
     ofstr.seekp(videoInfoHeaderPosition_ );
     ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&videoInfoHeader_), sizeof(videoInfoHeader_));
 
-    // ofstr.seekp(streamAudioListPosition_ );
-    // ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&streamAudioList), sizeof(streamAudioList));
+    ofstr.seekp(streamAudioListPosition_ );
+    ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&streamAudioList), sizeof(streamAudioList));
 
-    // ofstr.seekp(streamHeaderAudioPosition_ );
-    // ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&streamHeaderAudio_), sizeof(streamHeaderAudio_));
+    ofstr.seekp(streamHeaderAudioPosition_ );
+    ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&streamHeaderAudio_), sizeof(streamHeaderAudio_));
 
-    // ofstr.seekp(audioInfoHeaderPosition_ );
-    // ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&audioInfoHeader_), sizeof(audioInfoHeader_));
+    ofstr.seekp(audioInfoHeaderPosition_ );
+    ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&audioInfoHeader_), sizeof(audioInfoHeader_));
+
+    ofstr.seekp(odmlListPosition_ );
+    ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&odmlList), sizeof(odmlList));
+
+    ofstr.seekp(odmlHeaderPosition_ );
+    ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&odmlHeader_), sizeof(&odmlHeader_));
 
     ofstr.seekp(moviHeaderPosition_ );
     ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&moviHeader_), sizeof(moviHeader_));
@@ -359,7 +423,7 @@ namespace BuildAvi {
     // TODO: while remaim > dwSuggestedBufferSize! remain - to cache
     while(remain > aviStructureConfig.dwSuggestedBufferSize) {
       ch.dwSize = aviStructureConfig.dwSuggestedBufferSize;
-      auto err = writeBlock(ch, position);
+      auto err = writeBlock(ch, position, true);
       if(err)
         return err;
 
@@ -369,7 +433,18 @@ namespace BuildAvi {
     return AviBuildError::Ptr();
   }
 
-  AviBuildError::Ptr AviBuilderImpl::writeBlock(const Avi::CHUNK_HEADER& ch, const void* data){
+  AviBuildError::Ptr AviBuilderImpl::writeBlock(const Avi::CHUNK_HEADER& ch, const void* data, bool saveIndex){
+    if(saveIndex) {
+      Avi::AVIINDEXENTRY index;
+      index.ckid = *reinterpret_cast<const uint32_t *>(&ch.dwFourCC[0]);
+      index.dwFlags = AVIIF_KEYFRAME;
+      index.dwChunkOffset = pos;// - (moviHeaderPosition_+ sizeof(moviHeader_));
+      index.dwChunkLength = ch.dwSize;   
+      indexes_.insert(indexes_.end(), 
+        reinterpret_cast<const uint8_t *>(&index), 
+        reinterpret_cast<const uint8_t *>(&index) + sizeof(index));
+    }
+
     ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&ch), sizeof(ch));
     ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(data), ch.dwSize);
     if(ofstr.fail())
