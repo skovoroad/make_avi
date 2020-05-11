@@ -3,8 +3,8 @@
 #include <string>
 
 struct Config {
-  size_t width = 0;
-  size_t height = 0;
+  uint32_t width = 0;
+  uint32_t height = 0;
   std::string audioData;
   std::string audioTimestamps;
   std::string videoData;

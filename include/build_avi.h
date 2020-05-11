@@ -15,8 +15,8 @@ namespace BuildAvi {
   struct Config {
     struct VideoChannel {
       VideoCodec codecVideo = VC_H264;
-      size_t width = 0;
-      size_t height = 0;
+      uint32_t width = 0;
+      uint32_t height = 0;
 
       size_t frameRateNum = 0; // units ...
       size_t frameRateDen = 1; // ...per secs

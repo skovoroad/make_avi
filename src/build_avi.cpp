@@ -22,7 +22,7 @@ namespace BuildAvi {
     void remove (uint32_t *pSizeField) { sizeFields_.erase(pSizeField); }
     void increase(size_t val) {
       for(auto pField : sizeFields_)
-        *pField += val;
+        *pField += static_cast<uint32_t>(val);
     }
   };
 
@@ -117,8 +117,8 @@ namespace BuildAvi {
         std::string("cannot open file to write: ") + config_.filename
       });;    
 
-    mainHeader_.dwMicroSecPerFrame = config_.video.frameRateNum ?
-      10e5 * config_.video.frameRateDen/ config_.video.frameRateNum : 0; 
+    mainHeader_.dwMicroSecPerFrame = static_cast<uint32_t>(config_.video.frameRateNum ?
+      10e5 * config_.video.frameRateDen/ config_.video.frameRateNum : 0); 
     mainHeader_.dwMaxBytesPerSec = 1024*1024*15; // TODO: calculate
     mainHeader_.dwPaddingGranularity = 0; 
     mainHeader_.dwFlags = AVIF_HASINDEX | AVIF_ISINTERLEAVED; 
