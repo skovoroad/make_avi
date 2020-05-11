@@ -2,6 +2,7 @@
 #include <fstream>
 #include <list>
 #include <set>
+#include <string>
 
 #include "build_avi.h"
 #include "avi_structs.h"
