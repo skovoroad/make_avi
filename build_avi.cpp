@@ -9,7 +9,7 @@
 namespace BuildAvi {
 
   struct AviStructureConfig {
-    size_t dwSuggestedBufferSize = 4096;
+    size_t dwSuggestedBufferSize = 4096 * 10;
   };
 
   static const AviStructureConfig aviStructureConfig;
@@ -117,7 +117,7 @@ namespace BuildAvi {
       });;    
 
     mainHeader_.dwMicroSecPerFrame = config_.video.frameRateNum ?
-      10e6 * config_.video.frameRateDen/ config_.video.frameRateNum : 0; 
+      10e5 * config_.video.frameRateDen/ config_.video.frameRateNum : 0; 
     mainHeader_.dwMaxBytesPerSec = 1024*1024*15; // TODO: calculate
     mainHeader_.dwPaddingGranularity = 0; 
     mainHeader_.dwFlags = AVIF_HASINDEX | AVIF_ISINTERLEAVED; 
@@ -239,23 +239,29 @@ namespace BuildAvi {
         status_ = ST_MOVI;
         return addVideo(data, nbytes);
       }
-      case ST_MOVI: {        
-        videoCache_.insert(
-          videoCache_.end(), 
-          static_cast<const uint8_t*>(data), 
-          static_cast<const uint8_t*>(data)+nbytes
-        ); 
-        if(videoCache_.size() < aviStructureConfig.dwSuggestedBufferSize)
-          return AviBuildError::Ptr();
+      case ST_MOVI: {     
+      mainHeader_.dwTotalFrames ++;
+      streamHeaderVideo_.dwLength ++; 
 
-        Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
-        auto err = writeBlockSplitted(chunk, videoCache_.data());
-        size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
-        mainHeader_.dwTotalFrames += chunksCount;
-        streamHeaderVideo_.dwLength += chunksCount; 
-        assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
-        videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
-        return err;
+       Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(nbytes) }; // TODO why 00? dc or db?
+       return writeBlock(chunk, data, true);
+
+      //   videoCache_.insert(
+      //     videoCache_.end(), 
+      //     static_cast<const uint8_t*>(data), 
+      //     static_cast<const uint8_t*>(data)+nbytes
+      //   ); 
+      //   if(videoCache_.size() < aviStructureConfig.dwSuggestedBufferSize)
+      //     return AviBuildError::Ptr();
+
+      //   Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
+      //   auto err = writeBlockSplitted(chunk, videoCache_.data());
+      //   size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
+      //   mainHeader_.dwTotalFrames += chunksCount;
+      //   streamHeaderVideo_.dwLength += chunksCount; 
+      //   assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
+      //   videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
+      //   return err;
       }
       case ST_FINISHED: 
         return AviBuildError::Ptr( new AviBuildError {
@@ -269,14 +275,14 @@ namespace BuildAvi {
   } 
 
   AviBuildError::Ptr AviBuilderImpl::close() {
-    Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
-    auto err = writeBlockSplitted(chunk, videoCache_.data());
-    size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
-    mainHeader_.dwTotalFrames += chunksCount;
-    odmlHeader_.dwTotalFrames += chunksCount;
-    streamHeaderVideo_.dwLength += chunksCount; 
-    assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
-    videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
+    // Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
+    // auto err = writeBlockSplitted(chunk, videoCache_.data());
+    // size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
+    // mainHeader_.dwTotalFrames += chunksCount;
+    // odmlHeader_.dwTotalFrames += chunksCount;
+    // streamHeaderVideo_.dwLength += chunksCount; 
+    // assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
+    // videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
 
     sizeFields_.remove(&moviHeader_.dwSize);
 
@@ -425,6 +431,7 @@ namespace BuildAvi {
     if(saveIndex) {
       Avi::AVIINDEXENTRY index;
       index.ckid = *reinterpret_cast<const uint32_t *>(&ch.dwFourCC[0]);
+      index.dwFlags  = 0;
       //index.dwFlags = AVIIF_KEYFRAME;
       index.dwChunkOffset = pos;// - (moviHeaderPosition_+ sizeof(moviHeader_));
       index.dwChunkLength = ch.dwSize;   

@@ -99,10 +99,10 @@ namespace Avi {
   };  
 
   struct AVIINDEXENTRY{
-    uint32_t ckid;
-    uint32_t dwFlags;
-    uint32_t dwChunkOffset;
-    uint32_t dwChunkLength;
+    uint32_t ckid = 0;
+    uint32_t dwFlags = 0;
+    uint32_t dwChunkOffset = 0;
+    uint32_t dwChunkLength = 0;
   };
 
   struct ODMLExtendedAVIHeader {
