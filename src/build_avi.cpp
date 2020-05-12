@@ -165,8 +165,7 @@ namespace BuildAvi {
         std::string("bad video mediatype: ") + config_.video.mediatype
       });;   
 
-    // mainHeader_.dwMicroSecPerFrame = static_cast<uint32_t>(config_.video.frameRateNum ?
-    //   10e5 * config_.video.frameRateDen/ config_.video.frameRateNum : 0); 
+    // mainHeader_.dwMicroSecPerFrame // calculate it at finish
     mainHeader_.dwMaxBytesPerSec = 1024*1024*15; // TODO: calculate
     mainHeader_.dwPaddingGranularity = 0; 
     mainHeader_.dwFlags = AVIF_HASINDEX | AVIF_ISINTERLEAVED; 
@@ -176,7 +175,7 @@ namespace BuildAvi {
     mainHeader_.dwSuggestedBufferSize = 0;
     mainHeader_.dwWidth = mt.width;
     mainHeader_.dwHeight = mt.height;
-//  mainHeader_.dwReserved[4];
+//  mainHeader_.dwReserved[4]; // ignore
 
     std::copy(FCC_TYPE_VIDEO, FCC_TYPE_VIDEO+4,  &streamHeaderVideo_.fccType[0]);
     std::copy(FCC_HANDLER_H264, FCC_HANDLER_H264+4, &streamHeaderVideo_.fccHandler[0]);
@@ -184,8 +183,8 @@ namespace BuildAvi {
     streamHeaderVideo_.wPriority = 0;
     streamHeaderVideo_.wLanguage = 0;
     streamHeaderVideo_.dwInitialFrames = 0;
-    // streamHeaderVideo_.dwScale = config_.video.frameRateDen;
-    // streamHeaderVideo_.dwRate = config_.video.frameRateNum; 
+    // streamHeaderVideo_.dwScale ; // calculate it at finish, estimating duration by audio size
+    // streamHeaderVideo_.dwRate; // calculate it at finish, estimating duration by audio size
     streamHeaderVideo_.dwStart = 0;
     streamHeaderVideo_.dwLength = 0; // will be calculated later
     streamHeaderVideo_.dwSuggestedBufferSize = aviStructureConfig.dwSuggestedBufferSize;
@@ -216,7 +215,7 @@ namespace BuildAvi {
     streamHeaderAudio_.wLanguage = 0;
     streamHeaderAudio_.dwInitialFrames = 0;
     streamHeaderAudio_.dwScale = 1;
-    streamHeaderAudio_.dwRate = 8000; // TODO: get it from config
+    streamHeaderAudio_.dwRate = 8000; // TODO: get it from mediatype
     streamHeaderAudio_.dwStart = 0;
     streamHeaderAudio_.dwLength = 0; // will be calculated later
     streamHeaderAudio_.dwSuggestedBufferSize = aviStructureConfig.dwSuggestedBufferSize;
@@ -229,8 +228,8 @@ namespace BuildAvi {
 
     audioInfoHeader_.wFormatTag = 1;
     audioInfoHeader_.nChannels = 1;
-    audioInfoHeader_.nSamplesPerSec = 8000;
-    audioInfoHeader_.nAvgBytesPerSec = 16000;
+    audioInfoHeader_.nSamplesPerSec = 8000; // TODO: get it from mediatype
+    audioInfoHeader_.nAvgBytesPerSec = 16000; // TODO: get it from mediatype
     audioInfoHeader_.nBlockAlign = 2;
     audioInfoHeader_.wBitsPerSample = 16;
     audioInfoHeader_.cbSize = 0;
@@ -263,10 +262,13 @@ namespace BuildAvi {
 
         Avi::CHUNK_HEADER chunk = {{'0','1','w','b'}, static_cast<uint32_t>(audioCache_.size()) }; // TODO why 00? dc or db?
         auto err = writeBlockSplitted(chunk, audioCache_.data());
+        if(err)
+          return err;
         size_t chunksCount = audioCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
         streamHeaderAudio_.dwLength += chunksCount * aviStructureConfig.dwSuggestedBufferSize / streamHeaderAudio_.dwSampleSize; 
         assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= audioCache_.size());
         audioCache_.erase(audioCache_.begin(), audioCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
+
       }
       case ST_FINISHED: 
         return AviBuildError::Ptr( new AviBuildError {
@@ -289,28 +291,10 @@ namespace BuildAvi {
         return addVideo(data, nbytes);
       }
       case ST_MOVI: {     
-      mainHeader_.dwTotalFrames ++;
-      streamHeaderVideo_.dwLength ++; 
-
-       Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(nbytes) }; // TODO why 00? dc or db?
-       return writeBlock(chunk, data, true);
-
-      //   videoCache_.insert(
-      //     videoCache_.end(), 
-      //     static_cast<const uint8_t*>(data), 
-      //     static_cast<const uint8_t*>(data)+nbytes
-      //   ); 
-      //   if(videoCache_.size() < aviStructureConfig.dwSuggestedBufferSize)
-      //     return AviBuildError::Ptr();
-
-      //   Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
-      //   auto err = writeBlockSplitted(chunk, videoCache_.data());
-      //   size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
-      //   mainHeader_.dwTotalFrames += chunksCount;
-      //   streamHeaderVideo_.dwLength += chunksCount; 
-      //   assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
-      //   videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
-      //   return err;
+        mainHeader_.dwTotalFrames ++;
+        streamHeaderVideo_.dwLength ++; 
+        Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(nbytes) }; // TODO why 00? dc or db?
+        return writeBlock(chunk, data, true);
       }
       case ST_FINISHED: 
         return AviBuildError::Ptr( new AviBuildError {
@@ -324,21 +308,17 @@ namespace BuildAvi {
   } 
 
   AviBuildError::Ptr AviBuilderImpl::close() {
-    // Avi::CHUNK_HEADER chunk = {{'0','0','d','b'}, static_cast<uint32_t>(videoCache_.size()) }; // TODO why 00? dc or db?
-    // auto err = writeBlockSplitted(chunk, videoCache_.data());
-    // size_t chunksCount = videoCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
-    // mainHeader_.dwTotalFrames += chunksCount;
-    // odmlHeader_.dwTotalFrames += chunksCount;
-    // streamHeaderVideo_.dwLength += chunksCount; 
-    // assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= videoCache_.size());
-    // videoCache_.erase(videoCache_.begin(), videoCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
-
     sizeFields_.remove(&moviHeader_.dwSize);
 
     Avi::CHUNK_HEADER ch = {{'i','d','x','1'}, static_cast<uint32_t>(indexes_.size()) };
-    writeBlock(ch, indexes_.data(), false);
+    auto err = writeBlock(ch, indexes_.data(), false);
+    if(err)
+      return err;
 
-    writeHeaders();
+    err = writeHeaders();
+    if(err)
+      return err;
+
     ofstr.close();
     status_ = ST_FINISHED;
     return AviBuildError::Ptr();
@@ -413,19 +393,25 @@ namespace BuildAvi {
         return err;
       sizeFields_.add(&moviHeader_.dwSize);
 
-
     return AviBuildError::Ptr();
   }
 
   AviBuildError::Ptr AviBuilderImpl::writeHeaders() {
-    double duration = static_cast<double>(streamHeaderAudio_.dwLength) / static_cast<double>(streamHeaderAudio_.dwRate);
-    double framerate = duration / static_cast<double>(streamHeaderVideo_.dwLength);
+    if(streamHeaderAudio_.dwRate) { // calculate from audio
+      double duration = static_cast<double>(streamHeaderAudio_.dwLength) / static_cast<double>(streamHeaderAudio_.dwRate);
+      double framerate = duration / static_cast<double>(streamHeaderVideo_.dwLength);
+      streamHeaderVideo_.dwRate = streamHeaderVideo_.dwLength;
+      streamHeaderVideo_.dwScale = static_cast<uint32_t>(duration); 
+    
+      mainHeader_.dwMicroSecPerFrame = static_cast<uint32_t>(10e5 * streamHeaderVideo_.dwScale/ streamHeaderVideo_.dwRate); 
+    }
+    else { // get from mediatype
+     // mainHeader_.dwMicroSecPerFrame = static_cast<uint32_t>(config_.video.frameRateNum ?
+     //   10e5 * config_.video.frameRateDen/ config_.video.frameRateNum : 0); 
 
-    streamHeaderVideo_.dwRate = streamHeaderVideo_.dwLength;
-    streamHeaderVideo_.dwScale = static_cast<uint32_t>(duration); 
-
-    mainHeader_.dwMicroSecPerFrame = static_cast<uint32_t>(streamHeaderVideo_.dwRate ?
-      10e5 * streamHeaderVideo_.dwScale/ streamHeaderVideo_.dwRate : 0); 
+    // streamHeaderVideo_.dwScale = config_.video.frameRateDen;
+    // streamHeaderVideo_.dwRate = config_.video.frameRateNum; 
+    }
 
 
     sizeFields_.remove(&riffList.dwSize);
@@ -465,6 +451,13 @@ namespace BuildAvi {
 
     ofstr.seekp(moviHeaderPosition_ );
     ofstr.write(reinterpret_cast<const std::ofstream::char_type*>(&moviHeader_), sizeof(moviHeader_));
+
+    if(ofstr.fail())
+      return AviBuildError::Ptr( new AviBuildError {
+        AviBuildError::CANNOT_WRITE_FILE, 
+        std::string("cannot write to file") 
+      });
+
 
     return AviBuildError::Ptr();
   }
@@ -522,6 +515,13 @@ namespace BuildAvi {
 
   AviBuildError::Ptr AviBuilderImpl::writePhony(size_t nbytes) {
     ofstr << std::string(nbytes, 0);
+    if(ofstr.fail())
+      return AviBuildError::Ptr( new AviBuildError {
+        AviBuildError::CANNOT_WRITE_FILE, 
+        std::string("cannot write to file") 
+      });
+
+
     sizeFields_.increase(nbytes);
     pos += nbytes;
     return AviBuildError::Ptr();
