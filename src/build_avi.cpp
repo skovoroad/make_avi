@@ -11,11 +11,11 @@
 namespace BuildAvi {
 
   struct VideoMediaType {
-    size_t width = 0;
-    size_t height = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
 
-    size_t frameRateDen = 0;
-    size_t frameRateNum = 0;     
+    uint32_t frameRateDen = 0;
+    uint32_t frameRateNum = 0;
 
     bool notify(const std::string& key, const std::string& value ) {
       if(key == "width") {
@@ -58,6 +58,7 @@ namespace BuildAvi {
       } // while
     } // try
     catch(const std::exception & ex) {
+      ex; // supress warning
       return false;
     }
     return true;
@@ -65,7 +66,7 @@ namespace BuildAvi {
 
 
   struct AviStructureConfig {
-    size_t dwSuggestedBufferSize = 4096;
+    uint32_t dwSuggestedBufferSize = 4096;
   };
 
   static const AviStructureConfig aviStructureConfig;
@@ -279,7 +280,8 @@ namespace BuildAvi {
         if(err)
           return err;
         size_t chunksCount = audioCache_.size() / aviStructureConfig.dwSuggestedBufferSize;
-        streamHeaderAudio_.dwLength += chunksCount * aviStructureConfig.dwSuggestedBufferSize / streamHeaderAudio_.dwSampleSize; 
+        streamHeaderAudio_.dwLength += static_cast<uint32_t>(
+          chunksCount * aviStructureConfig.dwSuggestedBufferSize / streamHeaderAudio_.dwSampleSize); // we know it`s integer
         assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= audioCache_.size());
         audioCache_.erase(audioCache_.begin(), audioCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
         break;
@@ -516,7 +518,7 @@ namespace BuildAvi {
       index.ckid = *reinterpret_cast<const uint32_t *>(&ch.dwFourCC[0]);
       index.dwFlags  = 0;
       //index.dwFlags = AVIIF_KEYFRAME;
-      index.dwChunkOffset = pos;// - (moviHeaderPosition_+ sizeof(moviHeader_));
+      index.dwChunkOffset = static_cast<uint32_t>(pos);
       index.dwChunkLength = ch.dwSize;
       indexes_.insert(indexes_.end(), 
         reinterpret_cast<const uint8_t *>(&index), 
