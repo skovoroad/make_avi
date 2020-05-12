@@ -114,12 +114,26 @@ int main(int argc, char** argv) {
     }
 
     if(next.type == TestData::AUDIO) {
-      aviBuilder->addAudio(0, next.buffer, next.size);
+      error = aviBuilder->addAudio(0, next.buffer, next.size);
+      if(error) {
+        std::cerr << "error on addAudio function: " << error->text;
+        return -5;
+      }
+
     }
     else {
-      aviBuilder->addVideo(next.buffer, next.size);
+      error = aviBuilder->addVideo(next.buffer, next.size);
+      if(error) {
+        std::cerr << "error on addVideo function: " << error->text;
+        return -5;
+      }
     }
   } // while
-  aviBuilder->close();
+  error  = aviBuilder->close();
+  if(error) {
+    std::cerr << "cannot close avi builder: " << error->text;
+    return -4;
+  }
+
   return 0;
 }

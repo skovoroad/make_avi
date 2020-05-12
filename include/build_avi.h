@@ -34,7 +34,8 @@ namespace BuildAvi {
       CANNOT_WRITE_FILE,
       ALREADY_FINISHED,
       UNKNONW_AUDIO_CHANNEL,
-      BAD_MEDIA_TYPE
+      BAD_MEDIA_TYPE,
+      UKNOWN_VIDEO_FRAMERATE
     };
     using Ptr = std::shared_ptr<AviBuildError>;
 

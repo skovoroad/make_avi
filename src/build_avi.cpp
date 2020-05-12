@@ -14,16 +14,27 @@ namespace BuildAvi {
     size_t width = 0;
     size_t height = 0;
 
-    void notify(const std::string& key, const std::string& value ) {
+    size_t frameRateDen = 0;
+    size_t frameRateNum = 0;     
+
+    bool notify(const std::string& key, const std::string& value ) {
       if(key == "width") {
         width = std::stoi(value);
       }
       if(key == "height") {
         height = std::stoi(value);
       }
+      if(key == "framerate") {
+        size_t pos   = value.find('/');
+        if(pos == std::string::npos)
+          return false;
+        frameRateNum = std::stoi(value.substr(0, pos));
+        frameRateDen = std::stoi(value.substr(pos + 1 ));
+      }
+      return true;
     }
-    void notify(const std::string& value ) {
-      
+    bool notify(const std::string& value ) {
+      return true;
     }
   };
 
@@ -34,12 +45,15 @@ namespace BuildAvi {
       std::string token;
       while (std::getline(iss, token, ',')) {
         size_t pos   = token.find('=');
-        if(pos == std::string::npos)
-          mt.notify(token);
+        if(pos == std::string::npos) {
+          if(!mt.notify(token))
+            return false;
+        }
         else {
           std::string name    = token.substr(0, pos);
           std::string value   = token.substr(pos + 1); 
-          mt.notify(name, value);
+          if(!mt.notify(name, value))
+            return false;
         }
       } // while
     } // try
@@ -141,6 +155,7 @@ namespace BuildAvi {
     std::vector<uint8_t> indexes_;
 
     SizeFields sizeFields_;
+    VideoMediaType videoMediaType_;
   };
 
   AviBuilderImpl::AviBuilderImpl (const Config& c)
@@ -158,8 +173,7 @@ namespace BuildAvi {
         std::string("cannot open file to write: ") + config_.filename
       });;    
 
-    VideoMediaType mt;
-    if(!parseMediaType(config_.video.mediatype, mt))
+    if(!parseMediaType(config_.video.mediatype, videoMediaType_))
       return AviBuildError::Ptr( new AviBuildError {
         AviBuildError::BAD_MEDIA_TYPE, 
         std::string("bad video mediatype: ") + config_.video.mediatype
@@ -173,8 +187,8 @@ namespace BuildAvi {
     mainHeader_.dwInitialFrames = 0;  
     mainHeader_.dwStreams = 2; // / TODO: get it from config
     mainHeader_.dwSuggestedBufferSize = 0;
-    mainHeader_.dwWidth = mt.width;
-    mainHeader_.dwHeight = mt.height;
+    mainHeader_.dwWidth = videoMediaType_.width;
+    mainHeader_.dwHeight = videoMediaType_.height;
 //  mainHeader_.dwReserved[4]; // ignore
 
     std::copy(FCC_TYPE_VIDEO, FCC_TYPE_VIDEO+4,  &streamHeaderVideo_.fccType[0]);
@@ -192,16 +206,16 @@ namespace BuildAvi {
     streamHeaderVideo_.dwSampleSize = 0;  
     streamHeaderVideo_.rcFrame.left = 0;  
     streamHeaderVideo_.rcFrame.top = 0;   
-    streamHeaderVideo_.rcFrame.right = mt.width;
-    streamHeaderVideo_.rcFrame.bottom = mt.height;
+    streamHeaderVideo_.rcFrame.right = videoMediaType_.width;
+    streamHeaderVideo_.rcFrame.bottom = videoMediaType_.height;
 
     videoInfoHeader_.biSize = sizeof(videoInfoHeader_); 
-    videoInfoHeader_.biWidth = mt.width; 
-    videoInfoHeader_.biHeight = mt.height; 
+    videoInfoHeader_.biWidth = videoMediaType_.width; 
+    videoInfoHeader_.biHeight = videoMediaType_.height; 
     videoInfoHeader_.biPlanes = 1; 
     videoInfoHeader_.biBitCount = 24; 
     std::copy(BICOMPRESSION_H264, BICOMPRESSION_H264+4, reinterpret_cast<char *>(&videoInfoHeader_.biCompression));
-    videoInfoHeader_.biSizeImage = mt.width * mt.height; 
+    videoInfoHeader_.biSizeImage = videoMediaType_.width * videoMediaType_.height; 
     videoInfoHeader_.biXPelsPerMeter = 0; 
     videoInfoHeader_.biYPelsPerMeter = 0; 
     videoInfoHeader_.biClrUsed = 0; 
@@ -268,7 +282,7 @@ namespace BuildAvi {
         streamHeaderAudio_.dwLength += chunksCount * aviStructureConfig.dwSuggestedBufferSize / streamHeaderAudio_.dwSampleSize; 
         assert(chunksCount * aviStructureConfig.dwSuggestedBufferSize <= audioCache_.size());
         audioCache_.erase(audioCache_.begin(), audioCache_.begin() + chunksCount * aviStructureConfig.dwSuggestedBufferSize);
-
+        break;
       }
       case ST_FINISHED: 
         return AviBuildError::Ptr( new AviBuildError {
@@ -397,7 +411,7 @@ namespace BuildAvi {
   }
 
   AviBuildError::Ptr AviBuilderImpl::writeHeaders() {
-    if(streamHeaderAudio_.dwRate) { // calculate from audio
+    if(streamHeaderAudio_.dwLength) { // calculate from audio
       double duration = static_cast<double>(streamHeaderAudio_.dwLength) / static_cast<double>(streamHeaderAudio_.dwRate);
       double framerate = duration / static_cast<double>(streamHeaderVideo_.dwLength);
       streamHeaderVideo_.dwRate = streamHeaderVideo_.dwLength;
@@ -406,11 +420,17 @@ namespace BuildAvi {
       mainHeader_.dwMicroSecPerFrame = static_cast<uint32_t>(10e5 * streamHeaderVideo_.dwScale/ streamHeaderVideo_.dwRate); 
     }
     else { // get from mediatype
-     // mainHeader_.dwMicroSecPerFrame = static_cast<uint32_t>(config_.video.frameRateNum ?
-     //   10e5 * config_.video.frameRateDen/ config_.video.frameRateNum : 0); 
+      if(!videoMediaType_.frameRateNum)
+        return AviBuildError::Ptr( new AviBuildError {
+          AviBuildError::UKNOWN_VIDEO_FRAMERATE, 
+          std::string("Cannot get framerate from mediatype neither from audio lenght (no audio?)") 
+        });
 
-    // streamHeaderVideo_.dwScale = config_.video.frameRateDen;
-    // streamHeaderVideo_.dwRate = config_.video.frameRateNum; 
+      mainHeader_.dwMicroSecPerFrame = static_cast<uint32_t>(videoMediaType_.frameRateNum ?
+        10e5 * videoMediaType_.frameRateDen/ videoMediaType_.frameRateNum : 0); 
+
+      streamHeaderVideo_.dwScale = videoMediaType_.frameRateDen;
+      streamHeaderVideo_.dwRate = videoMediaType_.frameRateNum; 
     }
 
 
