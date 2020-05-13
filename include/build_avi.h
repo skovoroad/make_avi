@@ -27,40 +27,24 @@ namespace BuildAvi {
     std::vector<AudioChannel> audio;
   };
 
-  struct AviBuildError {
-    enum Code {
-      UNKNOWN,
-      CANNOT_OPEN_FILE,
-      CANNOT_WRITE_FILE,
-      ALREADY_FINISHED,
-      UNKNONW_AUDIO_CHANNEL,
-      BAD_MEDIA_TYPE,
-      UKNOWN_VIDEO_FRAMERATE
-    };
-    using Ptr = std::shared_ptr<AviBuildError>;
-
-    Code code;
-    std::string text;
-  };
- 
-  class AviBuilder {
+ class AviBuilder {
   public:
     using Ptr = std::shared_ptr<AviBuilder>;
 
     virtual ~AviBuilder() {};
 
-    virtual AviBuildError::Ptr addAudio(
+    virtual void addAudio(
       size_t channelIndex, 
       const void *data, 
       size_t nbytes
       ) = 0; 
 
-    virtual AviBuildError::Ptr addVideo(
+    virtual void addVideo(
       const void *data, 
       size_t nbytes
       ) = 0; 
-    virtual AviBuildError::Ptr close() = 0; 
+    virtual void close() = 0; 
   };
 
-  std::tuple<AviBuilder::Ptr,AviBuildError::Ptr> createAviBuilder(const Config&);
+  AviBuilder::Ptr createAviBuilder(const Config&);
 } // namespace

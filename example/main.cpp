@@ -66,74 +66,61 @@ public:
 };
 
 int main(int argc, char** argv) {
-  Config appConfig;
-  if(!parseConfig(argc, argv, appConfig))
-    return -1;
+  try {
+    Config appConfig;
+    if(!parseConfig(argc, argv, appConfig))
+      return -1;
 
-  TestData video, audio;
-  if( !video.read(TestData::VIDEO, appConfig.videoData.c_str(), appConfig.videoTimestamps.c_str())) {
-    return -2;
-  }
-  if( !audio.read(TestData::AUDIO, appConfig.audioData.c_str(), appConfig.audioTimestamps.c_str())) {
-    return -3;
-  }
-
-  BuildAvi::Config config;
-  config.filename = appConfig.fileOut.c_str();
-  config.video.mediatype = appConfig.mediatype.c_str();
-  config.video.codecVideo = BuildAvi::VC_H264;
-  config.audio.push_back( { BuildAvi::AC_PCM } );
-
-  auto [aviBuilder, error] = BuildAvi::createAviBuilder(config);
-  assert(aviBuilder || error);
-  if(error) {
-    std::cerr << "cannot init avi builder: " << error->text;
-    return -4;
-  }
-
-  auto audio_it = audio.tss.begin();
-  auto video_it = video.tss.begin();
-  while (! (audio_it == audio.tss.end() && video_it == video.tss.end()) ) {
-    TestData::PacketInfo next;
-
-    if(audio_it == audio.tss.end()) {
-      next = *video_it;
-      video_it++;
+    TestData video, audio;
+    if( !video.read(TestData::VIDEO, appConfig.videoData.c_str(), appConfig.videoTimestamps.c_str())) {
+      return -2;
     }
-    else if(video_it == video.tss.end()) {
-      next = *audio_it;
-      audio_it++;
-    }
-    else if(audio_it->ts < video_it->ts) {
-      next = *audio_it;
-      audio_it++;      
-    }
-    else {
-      next = *video_it;
-      video_it++;            
+    if( !audio.read(TestData::AUDIO, appConfig.audioData.c_str(), appConfig.audioTimestamps.c_str())) {
+      return -3;
     }
 
-    if(next.type == TestData::AUDIO) {
-      error = aviBuilder->addAudio(0, next.buffer, next.size);
-      if(error) {
-        std::cerr << "error on addAudio function: " << error->text;
-        return -5;
+    BuildAvi::Config config;
+    config.filename = appConfig.fileOut.c_str();
+    config.video.mediatype = appConfig.mediatype.c_str();
+    config.video.codecVideo = BuildAvi::VC_H264;
+    config.audio.push_back( { BuildAvi::AC_PCM } );
+
+    auto aviBuilder  = BuildAvi::createAviBuilder(config);
+    assert(aviBuilder);
+
+    auto audio_it = audio.tss.begin();
+    auto video_it = video.tss.begin();
+    while (! (audio_it == audio.tss.end() && video_it == video.tss.end()) ) {
+      TestData::PacketInfo next;
+
+      if(audio_it == audio.tss.end()) {
+	next = *video_it;
+	video_it++;
+      }
+      else if(video_it == video.tss.end()) {
+	next = *audio_it;
+	audio_it++;
+      }
+      else if(audio_it->ts < video_it->ts) {
+	next = *audio_it;
+	audio_it++;      
+      }
+      else {
+	next = *video_it;
+	video_it++;            
       }
 
-    }
-    else {
-      error = aviBuilder->addVideo(next.buffer, next.size);
-      if(error) {
-        std::cerr << "error on addVideo function: " << error->text;
-        return -5;
+      if(next.type == TestData::AUDIO) {
+	aviBuilder->addAudio(0, next.buffer, next.size);
       }
-    }
-  } // while
-  error  = aviBuilder->close();
-  if(error) {
-    std::cerr << "cannot close avi builder: " << error->text;
-    return -4;
+      else {
+	aviBuilder->addVideo(next.buffer, next.size);
+      }
+    } // while
+    aviBuilder->close();
   }
-
+  catch(const std::exception &ex) {
+    std::cerr << "something went wrong: " << ex.what() << std::endl;
+  }
   return 0;
 }
