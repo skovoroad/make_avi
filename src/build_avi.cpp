@@ -51,6 +51,7 @@ namespace BuildAvi {
       } // while
     } // try
     catch(const std::exception & ex) {
+      ex;
       throw AviException("invalid mediatype");
     }
   }
